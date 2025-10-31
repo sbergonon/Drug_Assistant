@@ -12,13 +12,15 @@ import type {
 } from '../types';
 import { translations } from '../lib/translations';
 
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+let ai: GoogleGenAI | null = null;
 
-if (!API_KEY) {
-  throw new Error("API_KEY environment variable is not set.");
-}
-
-const ai = new GoogleGenAI({ apiKey: API_KEY });
+export const initializeAi = (apiKey: string) => {
+  if (!apiKey) {
+    ai = null;
+    throw new Error("API Key cannot be empty.");
+  }
+  ai = new GoogleGenAI({ apiKey });
+};
 
 const buildPrompt = (medications: string[], otherSubstances: string, conditions: string, dateOfBirth: string, pharmacogenetics: string, lang: 'es' | 'en'): string => {
   const medList = medications.join(', ');
@@ -142,6 +144,11 @@ const buildPrompt = (medications: string[], otherSubstances: string, conditions:
 
 export const analyzeInteractions = async (medications: string[], otherSubstances: string, conditions: string, dateOfBirth: string, pharmacogenetics: string, lang: 'es' | 'en'): Promise<AnalysisResult> => {
   const t = translations[lang];
+  
+  if (!ai) {
+    throw new Error(t.error_api_key_not_set);
+  }
+
   try {
     const prompt = buildPrompt(medications, otherSubstances, conditions, dateOfBirth, pharmacogenetics, lang);
 
@@ -235,7 +242,8 @@ export const analyzeInteractions = async (medications: string[], otherSubstances
     if (error instanceof Error && (error.message.includes(t.error_safety_block_check) || error.message.includes(t.error_no_response_check))) {
       throw error;
     }
-    if (error.message.includes('API key')) {
+    // Check for specific API key error messages from Google's services
+    if (error.message && (error.message.toLowerCase().includes('api key not valid') || error.message.toLowerCase().includes('invalid api key'))) {
         throw new Error(t.error_api_key);
     }
     throw new Error(t.error_service_unavailable);
