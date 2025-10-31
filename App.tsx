@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { analyzeInteractions } from './services/geminiService';
+import { analyzeInteractions, initializeAi } from './services/geminiService';
 import type { AnalysisResult, HistoryItem } from './types';
 import Header from './components/Header';
 import Disclaimer from './components/Disclaimer';
@@ -9,6 +9,7 @@ import ResultDisplay from './components/ResultDisplay';
 import HistoryPanel from './components/HistoryPanel';
 import TabSelector from './components/TabSelector';
 import TermsModal from './components/TermsModal';
+import ApiKeyModal from './components/ApiKeyModal';
 import { translations } from './lib/translations';
 
 const App: React.FC = () => {
@@ -24,14 +25,31 @@ const App: React.FC = () => {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [activeTab, setActiveTab] = useState<'form' | 'history'>('form');
   const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
+  
+  const [isApiKeySet, setIsApiKeySet] = useState(false);
+  const [isApiModalOpen, setIsApiModalOpen] = useState(false);
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null);
 
   const [lang] = useState<'es' | 'en'>(
     navigator.language.split('-')[0] === 'es' ? 'es' : 'en'
   );
   const t = translations[lang];
 
-
   useEffect(() => {
+    const savedKey = localStorage.getItem('gemini_api_key');
+    if (savedKey) {
+        try {
+            initializeAi(savedKey);
+            setIsApiKeySet(true);
+        } catch(e) {
+            console.error("Failed to initialize with stored API key", e);
+            localStorage.removeItem('gemini_api_key');
+            setIsApiModalOpen(true);
+        }
+    } else {
+        setIsApiModalOpen(true);
+    }
+
     try {
       const savedHistory = localStorage.getItem('drugInteractionHistory');
       if (savedHistory) {
@@ -42,6 +60,23 @@ const App: React.FC = () => {
       localStorage.removeItem('drugInteractionHistory');
     }
   }, []);
+  
+  const handleSaveApiKey = (key: string) => {
+    if (!key.trim()) {
+        setApiKeyError(t.error_api_key_empty);
+        return;
+    }
+    try {
+        initializeAi(key.trim());
+        localStorage.setItem('gemini_api_key', key.trim());
+        setIsApiKeySet(true);
+        setIsApiModalOpen(false);
+        setApiKeyError(null);
+    } catch(e: any) {
+        setApiKeyError(e.message);
+    }
+  };
+
 
   const handleClear = useCallback(() => {
     setMedications([]);
@@ -92,7 +127,14 @@ const App: React.FC = () => {
       });
 
     } catch (e: any) {
-      setError(e.message || t.error_unexpected);
+       if (e.message.includes(t.error_api_key_check)) {
+          setError(t.error_api_key);
+          setIsApiKeySet(false);
+          localStorage.removeItem('gemini_api_key');
+          setTimeout(() => setIsApiModalOpen(true), 500);
+      } else {
+          setError(e.message || t.error_unexpected);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -136,6 +178,18 @@ const App: React.FC = () => {
         </div>
 
         <main className="mt-6">
+            {!isApiKeySet && activeTab === 'form' && (
+              <div className="mb-6 p-4 bg-amber-100 dark:bg-amber-900/50 border border-amber-500 text-amber-800 dark:text-amber-200 rounded-lg text-center">
+                <p>{t.api_key_not_set_message}</p>
+                <button 
+                  onClick={() => setIsApiModalOpen(true)}
+                  className="mt-2 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  {t.api_key_set_button}
+                </button>
+              </div>
+            )}
+            
             {activeTab === 'form' && (
                 <div>
                     <div className="bg-white dark:bg-slate-800/50 p-4 md:p-6 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700">
@@ -154,6 +208,7 @@ const App: React.FC = () => {
                             onClear={handleClear}
                             isLoading={isLoading}
                             t={t}
+                            disabled={!isApiKeySet}
                         />
                     </div>
 
@@ -195,6 +250,14 @@ const App: React.FC = () => {
         </footer>
 
         {isTermsModalOpen && <TermsModal onClose={() => setIsTermsModalOpen(false)} t={t} />}
+        {isApiModalOpen && (
+            <ApiKeyModal 
+                onSave={handleSaveApiKey}
+                onClose={() => { if(isApiKeySet) setIsApiModalOpen(false); }}
+                error={apiKeyError}
+                t={t}
+            />
+        )}
       </div>
     </div>
   );
