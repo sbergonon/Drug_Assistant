@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { drugNames } from '../data/drugNames';
 import PlusIcon from './icons/PlusIcon';
@@ -19,6 +20,7 @@ interface InteractionFormProps {
   onClear: () => void;
   isLoading: boolean;
   t: any; // Translation object
+  disabled?: boolean;
 }
 
 const InteractionForm: React.FC<InteractionFormProps> = ({
@@ -36,6 +38,7 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
   onClear,
   isLoading,
   t,
+  disabled = false,
 }) => {
   const [currentMedication, setCurrentMedication] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -143,7 +146,7 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
       <div ref={autocompleteRef}>
         <label htmlFor="medication-input" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
           {t.form_medications_label}
@@ -277,7 +280,7 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
         <button
             type="button"
             onClick={onClear}
-            disabled={isLoading}
+            disabled={isLoading || disabled}
             className="w-full sm:w-auto inline-flex justify-center py-2 px-4 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 disabled:opacity-50 transition-colors duration-200"
         >
             {t.form_clear_button}
@@ -285,7 +288,7 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
         <button
             type="button"
             onClick={onAnalyze}
-            disabled={isLoading || !!dobError}
+            disabled={isLoading || !!dobError || disabled}
             className="w-full sm:w-auto inline-flex justify-center items-center py-2 px-6 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-700 hover:to-teal-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
         >
             {isLoading ? (
